@@ -1,0 +1,52 @@
+# Importing relevant libraries
+
+%matplotlib inline
+import matplotlib.pyplot as plt
+plt.style.use('seaborn')
+import matplotlib as mpl
+mpl.rcParams['font.family'] = 'serif'
+import warnings; warnings.simplefilter('ignore')
+
+import numpy as np
+import pandas as pd
+import tushare as ts
+
+data = ts.get_k_data('hs300', start = '2010-01-01', end='2019-06-30')[['date','close']]
+data.rename(columns={'close': 'price'}, inplace=True)
+data.set_index('date', inplace = True)
+
+data['returns'] = np.log(data['price'] / data['price'].shift(1))
+data['position'] = np.sign(data['returns'])  
+data['strategy'] = data['position'].shift(1) * data['returns'] 
+data[['returns', 'strategy']].cumsum().apply(np.exp).plot(figsize=(10, 6))    
+
+data['position_5'] = np.sign(data['returns'].rolling(5).mean()) 
+data['strategy_5'] = data['position_5'].shift(1) * data['returns']
+data[['returns', 'strategy_5']].dropna().cumsum().apply(np.exp).plot(figsize=(10, 6))
+
+data['returns_dis'] = data['price'] / data['price'].shift(1)-1
+#data['returns_dis'] = data['price'].pct_change()
+data['returns_dis_cum'] = (data['returns_dis']+1).cumprod()
+price_plot = ['returns_dis_cum'] 
+
+for days in [10,20,30,60]:
+#     data['position_%d' % days] = np.sign(data['returns'].rolling(days).mean())
+    price_plot.append('sty_cumr_%dd' % days)
+    data['position_%dd' % days] = np.where(data['returns'].rolling(days).mean()>0,1,-1)
+    data['strategy_%dd' % days] = data['position_%dd' % days].shift(1) * data['returns']
+    data['sty_cumr_%dd' % days] = (data['strategy_%dd' % days]+1).cumprod()
+    
+data[price_plot].dropna().plot(
+    title='HS300 Multi Parameters Momuntum Strategy',
+    figsize=(10, 6), style=['--', '--', '--', '--','--'])
+
+
+hs300_hf = ts.get_k_data('hs300', ktype='5')
+hs300_hf = pd.DataFrame(hs300_hf)
+hs300_hf.set_index('date',inplace = True)
+hs300_hf.index = pd.to_datetime(hs300_hf.index) 
+hs300_hf['returns'] = np.log(hs300_hf['close'] / hs300_hf['close'].shift(1))
+hs300_hf['position'] = np.sign(hs300_hf['returns'].rolling(10).mean()) 
+hs300_hf['strategy'] = hs300_hf['position'].shift(1) * hs300_hf['returns']
+hs300_hf[['returns', 'strategy']].dropna().cumsum().apply(np.exp).plot(figsize=(10, 6),
+                                                                       style=['--', '--'])
